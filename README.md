@@ -2,6 +2,8 @@
 
 地元民目線の京都AIアシスタント。天候・混雑・季節に合わせたスポットを提案します。
 
+🌐 **公開URL**: https://kyoto-local-explorer-819572359885.asia-northeast1.run.app
+
 ## 概要
 
 Vertex AI（Gemini 2.5 Flash）と Google Search Grounding を活用し、旅行者・地元民に「地元民目線の京都体験」を提供するWebアプリです。
