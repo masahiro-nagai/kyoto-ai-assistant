@@ -53,6 +53,21 @@
   - 次回ログイン時に「保存済みスポット」として表示
 ```
 
+### UC-05: 行きたかった場所のリマインダー
+```
+ユーザー: 「最近気になってた場所、思い出させて」
+         または毎週1回の定期リマインド
+期待する動作:
+  - Firestoreの「行きたいリスト」(wishlist) から未訪問スポットを取得
+  - 保存時に記録した「気になった理由」と共に提示
+  - Embedding類似度で「今の気分・天気・季節」に合ったものを優先表示
+  - 「行った」ボタンで訪問済みにマーク
+```
+
+**備考（実装上の注意）:**
+- 「何気なく感じた場所」を保存するUI（気軽に追加できる入力フォーム）が必要
+- 理由は任意テキスト（例: 「桜の時期に行きたい」「雨の日でもよさそう」）
+
 ---
 
 ## 3. 機能仕様
@@ -66,19 +81,30 @@
 | キャラクター | 京都在住10年目の地元民。丁寧だが少し京都弁 |
 | Hallucination対策 | Very Low に設定 |
 
-### 3.2 フロントエンド
+### 3.2 Embeddingモデル
+| 項目 | 仕様 |
+|------|------|
+| モデル | `gemini-embedding-2-preview` |
+| 入力 | テキスト・画像・動画・音声・PDF（マルチモーダル） |
+| 出力次元 | 1536（推奨） |
+| 用途 | スポットRAGのベクトル化 / UC-05の類似度検索（気分・季節マッチング） |
+| API | Gemini API (`embedContent`) |
+
+### 3.3 フロントエンド
 | 項目 | 仕様 |
 |------|------|
 | フレームワーク | Streamlit |
 | 入力 | テキスト + 現在地入力（オプション） |
 | 出力 | テキスト回答 + Google Mapsリンク + ブックマークボタン |
+| 追加UI | 「行きたいな」簡易登録フォーム（スポット名 + 理由テキスト） |
 
-### 3.3 データストア
+### 3.4 データストア
 | データ | 保存先 | 内容 |
 |--------|--------|------|
 | 隠れ家スポット | Cloud Storage → Vector Search | 手動作成Markdownから |
 | 公式観光PDF | Cloud Storage → Vector Search | kyoto.travel等 |
 | お気に入り | Firestore | ユーザー別ブックマーク |
+| 行きたいリスト | Firestore | スポット名・理由・Embedding・訪問フラグ |
 
 ---
 
@@ -104,6 +130,19 @@
 }
 ```
 
+### Firestore: `wishlist` コレクション
+```json
+{
+  "spot_name": "string",
+  "reason": "string",       // 気になった理由（例: 「桜の時期に行きたい」）
+  "embedding": "vector",   // gemini-embedding-2-preview で生成
+  "category": "string",
+  "visited": false,         // 訪問済みフラグ
+  "added_at": "timestamp",
+  "visited_at": "timestamp | null"
+}
+```
+
 ---
 
 ## 6. 実装フェーズ
@@ -111,9 +150,10 @@
 | Phase | 内容 | 完了条件 |
 |-------|------|---------|
 | Phase 1 | Vertex AI Agent 作成 + Grounding確認 | UC-01が動作する |
-| Phase 2 | RAGデータ注入 | UC-03がRAGから回答を返す |
+| Phase 2 | RAGデータ注入（Embedding含む） | UC-03がRAGから回答を返す |
 | Phase 3 | Streamlit UI + Cloud Run デプロイ | URLにアクセスできる |
-| Phase 4 | Firestore保存 | UC-04が動作する |
+| Phase 4 | Firestore保存（favorites） | UC-04が動作する |
+| Phase 5 | wishlist + Embeddingリマインダー | UC-05が動作する |
 
 ---
 
@@ -122,3 +162,4 @@
 | 日付 | 変更内容 |
 |------|---------|
 | 2026-03-24 | 初版作成 |
+| 2026-03-24 | UC-05追加・Embedding model仕様追加・wishlistデータモデル追加 |
