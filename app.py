@@ -1,6 +1,6 @@
 """
-京都 Local Explorer - Phase 1 メインアプリ
-Streamlit + Vertex AI Gemini 2.5 Flash + Google Search Grounding
+京都 Local Explorer - Phase 2 メインアプリ
+Streamlit + Vertex AI Gemini 2.5 Flash + Google Search Grounding + 隐れ家RAG
 """
 
 import json
@@ -16,6 +16,7 @@ PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "kyoto-ai-assistant")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-northeast1")
 MODEL_ID = "gemini-2.5-flash"
 SYSTEM_PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "system_prompt.txt")
+RAG_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "spots")
 
 # Vertex AI クライアント初期化
 client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
@@ -27,6 +28,20 @@ client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 def load_system_prompt() -> str:
     with open(SYSTEM_PROMPT_PATH, encoding="utf-8") as f:
         return f.read()
+
+
+@st.cache_resource
+def load_rag_data() -> str:
+    """隐れ家スポットのMarkdownデータを読み込んで文字列として返す"""
+    texts = []
+    if not os.path.isdir(RAG_DATA_DIR):
+        return ""
+    for fname in sorted(os.listdir(RAG_DATA_DIR)):
+        if fname.endswith(".md"):
+            fpath = os.path.join(RAG_DATA_DIR, fname)
+            with open(fpath, encoding="utf-8") as f:
+                texts.append(f.read())
+    return "\n\n".join(texts)
 
 
 @st.cache_resource
@@ -42,10 +57,19 @@ def get_generation_config() -> types.GenerateContentConfig:
 
 
 def build_user_message(query: str, location: str) -> str:
-    """ユーザー入力+現在地をまとめたメッセージを生成する"""
+    """ユーザー入力+現在地+RAGデータをまとめたメッセージを生成する"""
+    rag_data = load_rag_data()
+    parts = []
+    if rag_data:
+        parts.append(
+            "## 地元民の隐れ家スポットデータ（優先参照）\n"
+            + rag_data
+            + "\n\n---\n"
+        )
     if location.strip():
-        return f"現在地: {location.strip()}\n\n{query}"
-    return query
+        parts.append(f"現在地: {location.strip()}")
+    parts.append(query)
+    return "\n\n".join(parts)
 
 
 def parse_response(raw_text: str) -> dict | None:
