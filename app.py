@@ -49,9 +49,15 @@ def get_user_id() -> str:
 def save_favorite(spot: dict, user_id: str) -> bool:
     """スポットをFirestoreのfavoritesコレクションに保存し、session_stateキャッシュも更新する"""
     now = datetime.now(timezone.utc)
+    spot_name = spot.get("name", "")
+    # 重複チェック：session_stateキャッシュで同名スポットが既に効るか確認
+    cache = st.session_state.get("favorites_cache", [])
+    if any(f.get("spot_name") == spot_name for f in cache):
+        return False  # 重複 → 保存しない
+
     fav_data = {
         "userId": user_id,
-        "spot_name": spot.get("name", ""),
+        "spot_name": spot_name,
         "description": spot.get("reason", ""),
         "maps_url": spot.get("maps_url", ""),
         "category": spot.get("category", ""),
@@ -237,10 +243,17 @@ def render_spot_card(spot: dict, user_id: str, show_save_btn: bool = True) -> No
         with col3:
             if show_save_btn:
                 btn_key = f"fav_{name}_{hash(reason)}"
-                if st.button("⭐ 保存", key=btn_key, use_container_width=True):
-                    if save_favorite(spot, user_id):
-                        st.success("お気に入りに保存しました！")
-                        st.rerun()
+                # 既に保存済みか確認
+                cache = st.session_state.get("favorites_cache", [])
+                already_saved = any(f.get("spot_name") == name for f in cache)
+                if already_saved:
+                    st.button("✅ 保存済み", key=btn_key, use_container_width=True, disabled=True)
+                else:
+                    if st.button("⭐ 保存", key=btn_key, use_container_width=True):
+                        result = save_favorite(spot, user_id)
+                        if result:
+                            st.rerun()
+
 
         st.write(reason)
 
