@@ -284,8 +284,14 @@ def render_favorites_tab(user_id: str) -> None:
             with col3:
                 if st.button("🗑️ 削除", key=f"del_{fav['id']}", use_container_width=True):
                     if delete_favorite(fav["id"]):
-                        st.success("削除しました")
+                        # session_stateキャッシュからも除去
+                        if "favorites_cache" in st.session_state:
+                            st.session_state.favorites_cache = [
+                                f for f in st.session_state.favorites_cache
+                                if f.get("id") != fav["id"]
+                            ]
                         st.rerun()
+
             if fav.get("description"):
                 st.write(fav["description"])
             saved_at = fav.get("saved_at")
